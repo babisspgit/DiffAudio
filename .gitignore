@@ -1,5 +1,7 @@
 # Ignore the data folder and everything inside it
 data/
+diffusers/
+results/
 
 # Optional: Ignore system or editor-specific files (you can remove this if not needed)
 *.log
