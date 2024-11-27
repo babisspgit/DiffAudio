@@ -1,7 +1,12 @@
 # Ignore the data folder and everything inside it
 data/
 diffusers/
+audioset_tagging_cnn/
 results/
+models/
+generated_images/
+notebooks/saved_models/
+notebooks/wandb/
 
 # Optional: Ignore system or editor-specific files (you can remove this if not needed)
 *.log
