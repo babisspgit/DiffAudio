@@ -4,7 +4,7 @@ diffusers/
 audioset_tagging_cnn/
 results/
 models/
-generated_images/
+generated_output/
 notebooks/saved_models/
 notebooks/wandb/
 

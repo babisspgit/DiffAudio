@@ -58,3 +58,5 @@ for prompt in prompts:
     # Save the image
     image.save(filename)
     print(f"Saved: {filename}")
+
+
