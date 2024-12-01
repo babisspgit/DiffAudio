@@ -10,9 +10,20 @@ import traceback
 import gc 
 
 
-#final
-def mp3_to_melspectrogram(mp3_file, audio_output_folder, spec_output_folder, trim_seconds=30, 
-                          include_legend=False, nmels=512, segment_duration=5, save_audio_segments=True):
+import random
+import os
+import librosa
+import librosa.display
+import numpy as np
+import matplotlib.pyplot as plt
+from pydub import AudioSegment
+import gc
+import traceback
+
+
+def mp3_to_melspectrogram(mp3_file, audio_output_folder, spec_output_folder, trim_seconds=30,
+                          include_legend=False, nmels=512, segment_duration=5, save_audio_segments=True,
+                          num_segments=5):
     """
     Converts an MP3 file to mel spectrograms and optionally saves the audio segments.
 
@@ -25,6 +36,7 @@ def mp3_to_melspectrogram(mp3_file, audio_output_folder, spec_output_folder, tri
         nmels (int): Number of mel bands to generate in the spectrogram.
         segment_duration (int): Duration of each segment in seconds. If None, processes the entire audio.
         save_audio_segments (bool): Whether to save the corresponding audio segments.
+        num_segments (int or None): Number of segments to save. If None, saves all segments.
     """
     # Ensure both output folders exist
     os.makedirs(audio_output_folder, exist_ok=True)
@@ -32,7 +44,7 @@ def mp3_to_melspectrogram(mp3_file, audio_output_folder, spec_output_folder, tri
 
     try:
         print(f"Loading file: {mp3_file}")
-        
+
         # Load the MP3 file using PyDub
         audio = AudioSegment.from_file(mp3_file)
         total_duration_ms = len(audio)  # Duration in milliseconds
@@ -50,25 +62,35 @@ def mp3_to_melspectrogram(mp3_file, audio_output_folder, spec_output_folder, tri
         audio_trimmed = audio[start_trim:end_trim]
 
         print(f"Trimmed audio length (ms): {len(audio_trimmed)}")
-        
+
         # Calculate segment length in samples if segment_duration is specified
         sr = audio_trimmed.frame_rate
         samples_per_segment = int(segment_duration * sr) if segment_duration else len(audio_trimmed.get_array_of_samples())
-        
+
         # Convert to NumPy array
         y = np.array(audio_trimmed.get_array_of_samples()).astype(np.float32)
-        
+
         # Convert stereo to mono
         if audio_trimmed.channels == 2:
             y = y.reshape((-1, 2)).mean(axis=1)
 
         print(f"Sample rate: {sr}, Audio shape after conversion: {y.shape}")
 
-        # Process each segment if segment_duration is specified
-        segment_count = 0
-        for start_sample in range(0, len(y) - samples_per_segment + 1, samples_per_segment):
+        # Determine the total number of segments
+        total_segments = len(y) // samples_per_segment
+
+        # Select random segments if num_segments is specified
+        if num_segments is not None and num_segments < total_segments:
+            selected_indices = sorted(random.sample(range(total_segments), num_segments))
+        else:
+            selected_indices = list(range(total_segments))
+
+        print(f"Total segments: {total_segments}, Selected segments: {len(selected_indices)}")
+
+        # Process each selected segment
+        for segment_count, idx in enumerate(selected_indices, start=1):
+            start_sample = idx * samples_per_segment
             segment = y[start_sample:start_sample + samples_per_segment]
-            segment_count += 1
 
             # Generate the mel spectrogram
             mel_spectrogram = librosa.feature.melspectrogram(y=segment, sr=sr, n_mels=nmels)
@@ -76,7 +98,7 @@ def mp3_to_melspectrogram(mp3_file, audio_output_folder, spec_output_folder, tri
 
             # Plot and save the mel spectrogram
             plt.figure(figsize=(10, 6))
-            librosa.display.specshow(D, sr=sr, x_axis='time' if include_legend else None, 
+            librosa.display.specshow(D, sr=sr, x_axis='time' if include_legend else None,
                                      y_axis='mel' if include_legend else None, cmap='inferno')
 
             if include_legend:
@@ -104,40 +126,14 @@ def mp3_to_melspectrogram(mp3_file, audio_output_folder, spec_output_folder, tri
                 audio_segment.export(audio_segment_path, format="mp3")
                 print(f"Audio segment saved to {audio_segment_path}")
 
-        if segment_duration is None:
-            # Process entire audio as a single segment if segment_duration is not specified
-            mel_spectrogram = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=nmels)
-            D = librosa.power_to_db(mel_spectrogram, ref=np.max)
-
-            plt.figure(figsize=(10, 6))
-            librosa.display.specshow(D, sr=sr, x_axis='time' if include_legend else None, 
-                                     y_axis='mel' if include_legend else None, cmap='inferno')
-
-            if include_legend:
-                plt.colorbar(format='%+2.0f dB')
-                plt.title(f'Mel Spectrogram of {os.path.basename(mp3_file)}')
-
-            else:
-                plt.axis('off')
-                plt.gca().set_position([0, 0, 1, 1])
-
-            output_image_path = os.path.join(
-                spec_output_folder, f"{os.path.splitext(os.path.basename(mp3_file))[0]}_full.png"
-            )
-            plt.savefig(output_image_path, bbox_inches='tight', pad_inches=0 if not include_legend else 0.1)
-            plt.close()
-
-            print(f"Full audio spectrogram saved to {output_image_path}")
-
-    # Explicitly release memory
+        # Explicitly release memory
         del audio, audio_trimmed, y, segment
         gc.collect()
 
     except Exception as e:
         print(f"Error processing {mp3_file}: {e}")
         traceback.print_exc()  # Print detailed error traceback
-
-
+        
 def process_all_mp3_in_folder(folder_path, audio_output_folder, spec_output_folder):
     # Ensure the output folders exist
     os.makedirs(audio_output_folder, exist_ok=True)
@@ -158,6 +154,8 @@ def process_all_mp3_in_folder(folder_path, audio_output_folder, spec_output_fold
 
             print(f"Processing file: {mp3_file}")
             mp3_to_melspectrogram(mp3_file, audio_output_folder, spec_output_folder)
+
+
+
             
-            
-process_all_mp3_in_folder("/work3/s222948/DiffAudio/data/raw/1000dataset", "/work3/s222948/DiffAudio/data/processed/1000dataset_5/audio", "/work3/s222948/DiffAudio/data/processed/1000dataset_5/audio_specs")
+process_all_process_all_mp3_in_folder("/work3/s222948/DiffAudio/data/raw/1000dataset", "/work3/s222948/data/processed/1000dataset_5/audio", "/work3/s222948/data/processed/1000dataset_5/audio_specs")
