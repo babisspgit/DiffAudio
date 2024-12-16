@@ -20,27 +20,32 @@ import librosa.display
 import matplotlib.pyplot as plt
 from pydub import AudioSegment
 import traceback
+import gc
 
-def mp3_to_melspectrogram(mp3_file, output_folder, trim_seconds=30, include_legend=False, nmels=128, 
-                          segment_duration=10, save_audio_segments=False):
+def mp3_to_melspectrogram(mp3_file, audio_output_folder, spec_output_folder, trim_seconds=30,
+                          include_legend=False, nmels=512, segment_duration=5, save_audio_segments=True,
+                          num_segments=5):
     """
     Converts an MP3 file to mel spectrograms and optionally saves the audio segments.
 
     Parameters:
         mp3_file (str): Path to the MP3 file.
-        output_folder (str): Folder to save the spectrogram images and audio segments.
+        audio_output_folder (str): Folder to save the audio segments.
+        spec_output_folder (str): Folder to save the spectrogram images.
         trim_seconds (int): Number of seconds to trim from both ends of the audio.
         include_legend (bool): Whether to include legends and axes in the spectrogram plots.
         nmels (int): Number of mel bands to generate in the spectrogram.
         segment_duration (int): Duration of each segment in seconds. If None, processes the entire audio.
         save_audio_segments (bool): Whether to save the corresponding audio segments.
+        num_segments (int or None): Number of segments to save. If None, saves all segments.
     """
-    # Ensure the output folder exists
-    os.makedirs(output_folder, exist_ok=True)
+    # Ensure both output folders exist
+    os.makedirs(audio_output_folder, exist_ok=True)
+    os.makedirs(spec_output_folder, exist_ok=True)
 
     try:
         print(f"Loading file: {mp3_file}")
-        
+
         # Load the MP3 file using PyDub
         audio = AudioSegment.from_file(mp3_file)
         total_duration_ms = len(audio)  # Duration in milliseconds
@@ -58,25 +63,35 @@ def mp3_to_melspectrogram(mp3_file, output_folder, trim_seconds=30, include_lege
         audio_trimmed = audio[start_trim:end_trim]
 
         print(f"Trimmed audio length (ms): {len(audio_trimmed)}")
-        
+
         # Calculate segment length in samples if segment_duration is specified
         sr = audio_trimmed.frame_rate
         samples_per_segment = int(segment_duration * sr) if segment_duration else len(audio_trimmed.get_array_of_samples())
-        
+
         # Convert to NumPy array
         y = np.array(audio_trimmed.get_array_of_samples()).astype(np.float32)
-        
+
         # Convert stereo to mono
         if audio_trimmed.channels == 2:
             y = y.reshape((-1, 2)).mean(axis=1)
 
         print(f"Sample rate: {sr}, Audio shape after conversion: {y.shape}")
 
-        # Process each segment if segment_duration is specified
-        segment_count = 0
-        for start_sample in range(0, len(y) - samples_per_segment + 1, samples_per_segment):
+        # Determine the total number of segments
+        total_segments = len(y) // samples_per_segment
+
+        # Select random segments if num_segments is specified
+        if num_segments is not None and num_segments < total_segments:
+            selected_indices = sorted(random.sample(range(total_segments), num_segments))
+        else:
+            selected_indices = list(range(total_segments))
+
+        print(f"Total segments: {total_segments}, Selected segments: {len(selected_indices)}")
+
+        # Process each selected segment
+        for segment_count, idx in enumerate(selected_indices, start=1):
+            start_sample = idx * samples_per_segment
             segment = y[start_sample:start_sample + samples_per_segment]
-            segment_count += 1
 
             # Generate the mel spectrogram
             mel_spectrogram = librosa.feature.melspectrogram(y=segment, sr=sr, n_mels=nmels)
@@ -84,7 +99,7 @@ def mp3_to_melspectrogram(mp3_file, output_folder, trim_seconds=30, include_lege
 
             # Plot and save the mel spectrogram
             plt.figure(figsize=(10, 6))
-            librosa.display.specshow(D, sr=sr, x_axis='time' if include_legend else None, 
+            librosa.display.specshow(D, sr=sr, x_axis='time' if include_legend else None,
                                      y_axis='mel' if include_legend else None, cmap='inferno')
 
             if include_legend:
@@ -96,7 +111,7 @@ def mp3_to_melspectrogram(mp3_file, output_folder, trim_seconds=30, include_lege
 
             # Save the spectrogram image
             output_image_path = os.path.join(
-                output_folder, f"{os.path.splitext(os.path.basename(mp3_file))[0]}_segment_{segment_count}.png"
+                spec_output_folder, f"{os.path.splitext(os.path.basename(mp3_file))[0]}_segment_{segment_count}.png"
             )
             plt.savefig(output_image_path, bbox_inches='tight', pad_inches=0 if not include_legend else 0.1)
             plt.close()
@@ -107,35 +122,14 @@ def mp3_to_melspectrogram(mp3_file, output_folder, trim_seconds=30, include_lege
             if save_audio_segments:
                 audio_segment = audio_trimmed[start_sample // sr * 1000:(start_sample + samples_per_segment) // sr * 1000]
                 audio_segment_path = os.path.join(
-                    output_folder, f"{os.path.splitext(os.path.basename(mp3_file))[0]}_segment_{segment_count}.mp3"
+                    audio_output_folder, f"{os.path.splitext(os.path.basename(mp3_file))[0]}_segment_{segment_count}.mp3"
                 )
                 audio_segment.export(audio_segment_path, format="mp3")
                 print(f"Audio segment saved to {audio_segment_path}")
 
-        if segment_duration is None:
-            # Process entire audio as a single segment if segment_duration is not specified
-            mel_spectrogram = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=nmels)
-            D = librosa.power_to_db(mel_spectrogram, ref=np.max)
-
-            plt.figure(figsize=(10, 6))
-            librosa.display.specshow(D, sr=sr, x_axis='time' if include_legend else None, 
-                                     y_axis='mel' if include_legend else None, cmap='inferno')
-
-            if include_legend:
-                plt.colorbar(format='%+2.0f dB')
-                plt.title(f'Mel Spectrogram of {os.path.basename(mp3_file)}')
-
-            else:
-                plt.axis('off')
-                plt.gca().set_position([0, 0, 1, 1])
-
-            output_image_path = os.path.join(
-                output_folder, f"{os.path.splitext(os.path.basename(mp3_file))[0]}_full.png"
-            )
-            plt.savefig(output_image_path, bbox_inches='tight', pad_inches=0 if not include_legend else 0.1)
-            plt.close()
-
-            print(f"Full audio spectrogram saved to {output_image_path}")
+        # Explicitly release memory
+        del audio, audio_trimmed, y, segment
+        gc.collect()
 
     except Exception as e:
         print(f"Error processing {mp3_file}: {e}")
@@ -462,3 +456,27 @@ def create_balanced_dataloaders(image_folder, association_csv, batch_size=32):
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     
     return train_loader, val_loader, test_loader
+
+# write code to access the raw/audio folder, move the json files to a new folder 'Json' and delete the jpg files
+def move_json_files():
+    # get the current working directory
+    cwd = os.getcwd()
+    # get the path to the raw/audio folder
+    path = os.path.join(cwd, 'raw', 'audio')
+    # get the list of files in the raw/audio folder
+    files = os.listdir(path)
+    # create a new folder 'Json' in the raw/audio folder
+    new_folder = os.path.join(path, 'Json')
+    os.makedirs(new_folder, exist_ok=True)
+    # iterate through the files in the raw/audio folder 
+    for file in files:
+        # check if the file is a json file
+        if file.endswith('.json'):
+            # move the json file to the new folder 'Json'
+            os.rename(os.path.join(path, file), os.path.join(new_folder, file))
+        # check if the file is a jpg file
+        if file.endswith('.jpg'):
+            # delete the jpg file
+            os.remove(os.path.join(path, file))
+
+ 

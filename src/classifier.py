@@ -20,8 +20,8 @@ from utils import create_balanced_dataloaders, SpectrogramDataset, train_model, 
 
 
 ###########   Prepare Dataset for training ####################
-image_folder = "../data/raw/1000mel_spec_seg"
-association_csv = "../data/raw/L1000dataset_spec_valence_cluster.csv"
+image_folder = "../data/processed/1000mel_dataset_5/specs"
+association_csv = "../data/processed/L1000dataset_5seg_valence.csv"
 
 train_loader, val_loader, test_loader = create_balanced_dataloaders(image_folder, association_csv)
 
@@ -165,6 +165,7 @@ with torch.no_grad():  # Disable gradient calculation for testing
         # Collect predictions and true labels
         all_preds.extend(preds.cpu().numpy())
         all_labels.extend(labels.cpu().numpy())
+        
 # Calculate metrics
 accuracy = accuracy_score(all_labels, all_preds)
 precision = precision_score(all_labels, all_preds, average='weighted')
