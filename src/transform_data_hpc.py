@@ -22,7 +22,7 @@ import traceback
 
 
 def mp3_to_melspectrogram(mp3_file, audio_output_folder, spec_output_folder, trim_seconds=30,
-                          include_legend=False, nmels=512, segment_duration=5, save_audio_segments=True,
+                          include_legend=False, nmels=256, segment_duration=5, save_audio_segments=True,
                           num_segments=5):
     """
     Converts an MP3 file to mel spectrograms and optionally saves the audio segments.
@@ -156,6 +156,7 @@ def process_all_mp3_in_folder(folder_path, audio_output_folder, spec_output_fold
             mp3_to_melspectrogram(mp3_file, audio_output_folder, spec_output_folder)
 
 
-
-            
-process_all_process_all_mp3_in_folder("/work3/s222948/DiffAudio/data/raw/1000dataset", "/work3/s222948/data/processed/1000dataset_5/audio", "/work3/s222948/data/processed/1000dataset_5/audio_specs")
+#process_all_mp3_in_folder("/work3/s222948/DiffAudio/data/raw/1000dataset", "/work3/s222948/data/processed/1000dataset_5/audio", "/work3/s222948/data/processed/1000dataset_5/audio_specs")
+process_all_mp3_in_folder("C:/Users/spbsp/OneDrive - Danmarks Tekniske Universitet/Skrivebord/DiffAudio/data/raw/1000dataset", 
+                          "C:/Users/spbsp/OneDrive - Danmarks Tekniske Universitet/Skrivebord/DiffAudio/data/processed/1000dataset_5/audio",
+                          "C:/Users/spbsp/OneDrive - Danmarks Tekniske Universitet/Skrivebord/DiffAudio/data/processed/1000dataset_5/specs")
