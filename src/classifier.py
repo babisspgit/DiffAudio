@@ -36,6 +36,9 @@ print(f"Number of testing samples: {len(test_loader.dataset)}")
 num_classes = 3  # 
 # Load a pre-trained model
 model = models.resnet18(pretrained=True)
+#model = models.resnet50(pretrained=True)
+#model = models.resnet34(pretrained=True)
+
 #resnet18.fc = nn.Linear(model.fc.in_features, num_classes)
 model.fc = nn.Sequential(
     nn.Linear(model.fc.in_features, 256),  # Intermediate layer
@@ -64,7 +67,7 @@ config = wandb.config
 # Set training parameters
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0005, weight_decay=1e-4)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
+#scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
 save_folder = "../results/res_classifier"
 
 num_epochs=10
@@ -171,6 +174,7 @@ accuracy = accuracy_score(all_labels, all_preds)
 precision = precision_score(all_labels, all_preds, average='weighted')
 recall = recall_score(all_labels, all_preds, average='weighted')
 f1 = f1_score(all_labels, all_preds, average='weighted')
+
 # Print results
 print(f"Test Accuracy: {accuracy:.4f}")
 print(f"Test Precision: {precision:.4f}")

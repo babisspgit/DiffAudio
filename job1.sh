@@ -21,11 +21,7 @@
 
 #BSUB -u s222948@dtu.dk 
 
-#BSUB -o job.out  # sou dimiourgei arxeio me to output
-
-#BSUB -e job.err  # sou dimiourgei arxeio me ta errors
-
-
+#### -- Estimated wall clock time --
 #BSUB -W 24:00
 
 #### -- Output File --
@@ -35,15 +31,6 @@
 #### -- Error File --
 
 #BSUB -e Output_%J.err
-
-#### -- estimated wall clock time (execution time): hh:mm -- 
-
-##BSUB -W 24:00 
-
-### -- Specify the distribution of the cores: on a single node --
-### -- end of LSF options -- 
-
-
 
 
 # loads automatically also numpy and python3 and underlying dependencies for our python 3.11.7

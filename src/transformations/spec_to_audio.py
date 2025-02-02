@@ -9,55 +9,11 @@ import torch
 import torchaudio
 
 
-def wav_bytes_from_spectrogram_image(image: Image.Image) -> Tuple[io.BytesIO, float]:
-    """
-    Reconstruct a WAV audio clip from a spectrogram image. Also returns the duration in seconds.
-    """
-    max_volume = 50
-    power_for_image = 0.25
-    Sxx = spectrogram_from_image(image, max_volume=max_volume, power_for_image=power_for_image)
-
-    sample_rate = 44100  # [Hz]
-    clip_duration_ms = 5000  # [ms]
-
-    bins_per_image = 512
-    n_mels = 512
-
-    # FFT parameters
-    window_duration_ms = 100  # [ms]
-    padded_duration_ms = 400  # [ms]
-    step_size_ms = 10  # [ms]
-
-    # Derived parameters
-    num_samples = int(image.width / float(bins_per_image) * clip_duration_ms) * sample_rate
-    n_fft = int(padded_duration_ms / 1000.0 * sample_rate)
-    hop_length = int(step_size_ms / 1000.0 * sample_rate)
-    win_length = int(window_duration_ms / 1000.0 * sample_rate)
-
-    samples = waveform_from_spectrogram(
-        Sxx=Sxx,
-        n_fft=n_fft,
-        hop_length=hop_length,
-        win_length=win_length,
-        num_samples=num_samples,
-        sample_rate=sample_rate,
-        mel_scale=True,
-        n_mels=n_mels,
-        num_griffin_lim_iters=32,
-    )
-
-    wav_bytes = io.BytesIO()
-    wavfile.write(wav_bytes, sample_rate, samples.astype(np.int16))
-    wav_bytes.seek(0)
-
-    duration_s = float(len(samples)) / sample_rate
-
-    return wav_bytes, duration_s
-
-
-def spectrogram_from_image(image: Image.Image, max_volume: float = 50, power_for_image: float = 0.25) -> np.ndarray:
+## 1)
+def spectrogram_from_image(image: Image.Image, max_volume: float = 50, power_for_image: float = 0.25, n_mels: int = 512) -> np.ndarray: 
     """
     Compute a spectrogram magnitude array from a spectrogram image.
+    Ensures the spectrogram has `n_mels` rows.
     """
     # Convert to a numpy array of floats
     data = np.array(image).astype(np.float32)
@@ -74,9 +30,19 @@ def spectrogram_from_image(image: Image.Image, max_volume: float = 50, power_for
     # Reverse the power curve
     data = np.power(data, 1 / power_for_image)
 
+    # Truncate or pad to match n_mels
+    if data.shape[0] > n_mels:
+        print('truncated')
+        data = data[:n_mels, :]  # Truncate excess rows
+    elif data.shape[0] < n_mels:
+        print('padded')
+        pad_amount = n_mels - data.shape[0]
+        data = np.pad(data, ((0, pad_amount), (0, 0)), mode="constant")  # Pad with zeros
+
     return data
 
 
+## 2)
 def waveform_from_spectrogram(
     Sxx: np.ndarray,
     n_fft: int,
@@ -87,7 +53,7 @@ def waveform_from_spectrogram(
     mel_scale: bool = True,
     n_mels: int = 512,
     num_griffin_lim_iters: int = 32,
-    device: str = "cpu",
+    device: str = "cuda",
 ) -> np.ndarray:
     """
     Reconstruct a waveform from a spectrogram.
@@ -120,6 +86,59 @@ def waveform_from_spectrogram(
     return waveform
 
 
+## 3)
+def wav_bytes_from_spectrogram_image(image: Image.Image) -> Tuple[io.BytesIO, float]:
+    """
+    Reconstruct a WAV audio clip from a spectrogram image. Also returns the duration in seconds.
+    """
+    max_volume = 50
+    power_for_image = 0.25
+    n_mels=512 # extra#
+    #Sxx = spectrogram_from_image(image, max_volume=max_volume, power_for_image=power_for_image)
+    Sxx = spectrogram_from_image(image, max_volume=max_volume, power_for_image=power_for_image, n_mels=n_mels) # extra
+
+    print('Done with Spectrogram to Image')
+    
+    sample_rate = 44100  # [Hz]
+    clip_duration_ms = 5000  # [ms]
+
+    bins_per_image = 512
+    n_mels = 512
+
+    # FFT parameters
+    window_duration_ms = 100  # [ms]
+    padded_duration_ms = 400  # [ms]
+    step_size_ms = 10  # [ms]
+
+    # Derived parameters
+    num_samples = int(image.width / float(bins_per_image) * clip_duration_ms) * sample_rate
+    n_fft = int(padded_duration_ms / 1000.0 * sample_rate)
+    hop_length = int(step_size_ms / 1000.0 * sample_rate)
+    win_length = int(window_duration_ms / 1000.0 * sample_rate)
+
+    samples = waveform_from_spectrogram(
+        Sxx=Sxx,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        win_length=win_length,
+        num_samples=num_samples,
+        sample_rate=sample_rate,
+        mel_scale=True,
+        n_mels=n_mels,
+        num_griffin_lim_iters=32,
+    )
+
+    print('Done with Spectrogram to Wav')
+    
+    wav_bytes = io.BytesIO()
+    wavfile.write(wav_bytes, sample_rate, samples.astype(np.int16))
+    wav_bytes.seek(0)
+
+    duration_s = float(len(samples)) / sample_rate
+
+    return wav_bytes, duration_s
+
+
 def process_spectrogram_folder(input_dir: str):
     """
     Convert all spectrogram images in a folder to audio files.
@@ -150,3 +169,20 @@ def process_spectrogram_folder(input_dir: str):
 # Example usage
 input_dir = "generated_images"
 process_spectrogram_folder(input_dir)
+
+#
+## Load the image using PIL
+#image_path = 'src/0ahmam4Hqa4hZD1QbUop13_s3_A jazz calming melody.png'
+#image = Image.open(image_path)
+#
+#print('read image')
+## Pass the loaded image to the function
+#wav_bytes, duration = wav_bytes_from_spectrogram_image(image)
+#
+#
+## Example: save the output audio file
+#output_path = 'output_audio.wav'
+#with open(output_path, 'wb') as f:
+#    f.write(wav_bytes.getbuffer())
+#
+#print(f"Audio saved at {output_path} with duration {duration:.2f}s")

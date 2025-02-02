@@ -22,6 +22,32 @@ from pydub import AudioSegment
 import traceback
 import gc
 
+def load_mp3_as_wav_with_librosa(mp3_path, sr=44100):
+    """
+    Load an MP3 file, convert it to WAV in-memory, and load it with librosa.
+    
+    Parameters:
+        mp3_path (str): Path to the MP3 file.
+        sr (int): Desired sampling rate for librosa. Defaults to 22050 Hz.
+        
+    Returns:
+        y (np.ndarray): Audio time series.
+        sr (int): Sampling rate.
+    """
+    # Load the MP3 file with pydub
+    audio = AudioSegment.from_file(mp3_path, format="mp3")
+    
+    # Convert to WAV in-memory
+    wav_buffer = io.BytesIO()
+    audio.export(wav_buffer, format="wav")
+    wav_buffer.seek(0)  # Reset buffer pointer to the beginning
+
+    # Load the WAV buffer with librosa
+    y, sr = librosa.load(wav_buffer, sr=sr)
+    return y, sr
+
+
+
 def mp3_to_melspectrogram(mp3_file, audio_output_folder, spec_output_folder, trim_seconds=30,
                           include_legend=False, nmels=512, segment_duration=5, save_audio_segments=True,
                           num_segments=5):
@@ -302,6 +328,55 @@ def process_spectrogram_folder(input_dir: str):
 # Example usage
 #input_dir = "generated_images"
 #process_spectrogram_folder(input_dir)
+
+def spectrogram_from_waveform(
+    waveform: np.ndarray,
+    sample_rate=sample_rate,
+    n_fft=n_fft,
+    hop_length=hop_length,
+    win_length=win_length,
+    mel_scale: bool = True,
+    n_mels: int = 512,
+) -> np.ndarray:
+
+    spectrogram_func = torchaudio.transforms.Spectrogram(
+        n_fft=n_fft,
+        power=None,
+        hop_length=hop_length,
+        win_length=win_length,
+    )
+
+    waveform_tensor = torch.from_numpy(waveform.astype(np.float32)).reshape(1, -1)
+    Sxx_complex = spectrogram_func(waveform_tensor).numpy()[0]
+
+    Sxx_mag = np.abs(Sxx_complex)
+
+    if mel_scale:
+        mel_scaler = torchaudio.transforms.MelScale(
+            n_mels=n_mels,
+            sample_rate=sample_rate,
+            f_min=0,
+            f_max=10000,
+            n_stft=n_fft // 2 + 1,
+            norm=None,
+            mel_scale="htk",
+        )
+
+        Sxx_mag = mel_scaler(torch.from_numpy(Sxx_mag)).numpy()
+
+    return Sxx_mag
+
+
+def image_from_spectrogram(spectrogram: np.ndarray, max_volume: float = 50, power_for_image: float = 0.25) -> Image.Image:
+
+    data = np.power(spectrogram, power_for_image)
+    data = data * 255 / max_volume
+    data = 255 - data
+    image = Image.fromarray(data.astype(np.uint8))
+    image = image.transpose(Image.FLIP_TOP_BOTTOM)
+    image = image.convert("RGB")
+
+    return image
 
 
 
